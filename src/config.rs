@@ -70,9 +70,7 @@ pub fn load_config() -> Result<Option<Config>> {
         Ok(d) => d,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(e) => {
-            return Err(
-                anyhow::anyhow!(e).context(format!("Failed to read {}", path.display()))
-            )
+            return Err(anyhow::anyhow!(e).context(format!("Failed to read {}", path.display())));
         }
     };
     let config = serde_json::from_str(&data)

@@ -3,7 +3,7 @@ use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
 use super::{
-    NONE, OutputFormat, active_status, detail_field, format_date, format_decimal,
+    DASH, OutputFormat, active_status, detail_field, format_date, format_decimal,
     print_detail_table, print_json, truncate,
 };
 
@@ -23,10 +23,10 @@ struct SeriesRow {
 
 fn series_to_row(s: &Series) -> SeriesRow {
     SeriesRow {
-        title: truncate(s.title.as_deref().unwrap_or(NONE), 50),
-        series_type: s.series_type.as_deref().unwrap_or(NONE).into(),
-        volume: s.volume.map_or_else(|| NONE.into(), format_decimal),
-        liquidity: s.liquidity.map_or_else(|| NONE.into(), format_decimal),
+        title: truncate(s.title.as_deref().unwrap_or(DASH), 50),
+        series_type: s.series_type.as_deref().unwrap_or(DASH).into(),
+        volume: s.volume.map_or_else(|| DASH.into(), format_decimal),
+        liquidity: s.liquidity.map_or_else(|| DASH.into(), format_decimal),
         status: active_status(s.closed, s.active).into(),
     }
 }

@@ -5,7 +5,7 @@ use serde_json::json;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{NONE, OutputFormat, detail_field, format_decimal, print_detail_table};
+use super::{DASH, OutputFormat, detail_field, format_decimal, print_detail_table};
 
 pub fn print_deposit(response: &DepositResponse, output: &OutputFormat) -> anyhow::Result<()> {
     match output {
@@ -140,7 +140,7 @@ pub fn print_status(response: &StatusResponse, output: &OutputFormat) -> anyhow:
                     tx_hash: tx
                         .tx_hash
                         .as_deref()
-                        .map_or_else(|| NONE.into(), |h| super::truncate(h, 14)),
+                        .map_or_else(|| DASH.into(), |h| super::truncate(h, 14)),
                 })
                 .collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();

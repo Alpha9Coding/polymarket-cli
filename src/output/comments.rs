@@ -2,7 +2,9 @@ use polymarket_client_sdk::gamma::types::response::Comment;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{NONE, OutputFormat, detail_field, format_date, print_detail_table, print_json, truncate};
+use super::{
+    DASH, OutputFormat, detail_field, format_date, print_detail_table, print_json, truncate,
+};
 
 #[derive(Tabled)]
 struct CommentRow {
@@ -24,21 +26,21 @@ fn comment_author(c: &Comment) -> String {
         .and_then(|p| p.name.as_deref().or(p.pseudonym.as_deref()))
         .map(String::from)
         .or_else(|| c.user_address.map(|a| truncate(&format!("{a}"), 10)))
-        .unwrap_or_else(|| NONE.into())
+        .unwrap_or_else(|| DASH.into())
 }
 
 fn comment_to_row(c: &Comment) -> CommentRow {
     CommentRow {
         id: truncate(&c.id, 12),
         author: comment_author(c),
-        body: truncate(c.body.as_deref().unwrap_or(NONE), 60),
+        body: truncate(c.body.as_deref().unwrap_or(DASH), 60),
         reactions: c
             .reaction_count
-            .map_or_else(|| NONE.into(), |n| n.to_string()),
+            .map_or_else(|| DASH.into(), |n| n.to_string()),
         created: c
             .created_at
             .as_ref()
-            .map_or_else(|| NONE.into(), format_date),
+            .map_or_else(|| DASH.into(), format_date),
     }
 }
 
@@ -101,7 +103,7 @@ pub fn print_comment(c: &Comment, output: &OutputFormat) -> anyhow::Result<()> {
         rows,
         "Reactions",
         c.reaction_count
-            .map_or_else(|| NONE.into(), |n| n.to_string())
+            .map_or_else(|| DASH.into(), |n| n.to_string())
     );
     detail_field!(
         rows,

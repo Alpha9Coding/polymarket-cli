@@ -4,7 +4,7 @@ use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
 use super::{
-    NONE, OutputFormat, active_status, detail_field, format_date, format_decimal,
+    DASH, OutputFormat, active_status, detail_field, format_date, format_decimal,
     print_detail_table, print_json, truncate,
 };
 
@@ -23,21 +23,21 @@ struct MarketRow {
 }
 
 fn market_to_row(m: &Market) -> MarketRow {
-    let question = m.question.as_deref().unwrap_or(NONE);
+    let question = m.question.as_deref().unwrap_or(DASH);
     let price_yes = m
         .outcome_prices
         .as_ref()
         .and_then(|p| p.first())
         .map_or_else(
-            || NONE.into(),
+            || DASH.into(),
             |p| format!("{:.2}¢", p * Decimal::from(100)),
         );
 
     MarketRow {
         question: truncate(question, 60),
         price_yes,
-        volume: m.volume_num.map_or_else(|| NONE.into(), format_decimal),
-        liquidity: m.liquidity_num.map_or_else(|| NONE.into(), format_decimal),
+        volume: m.volume_num.map_or_else(|| DASH.into(), format_decimal),
+        liquidity: m.liquidity_num.map_or_else(|| DASH.into(), format_decimal),
         status: active_status(m.closed, m.active).into(),
     }
 }

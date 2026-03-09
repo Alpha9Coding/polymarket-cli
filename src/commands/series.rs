@@ -6,7 +6,7 @@ use polymarket_client_sdk::gamma::{
 };
 
 use crate::output::OutputFormat;
-use crate::output::series::{print_series_item, print_series};
+use crate::output::series::{print_series, print_series_item};
 
 #[derive(Args)]
 pub struct SeriesArgs {

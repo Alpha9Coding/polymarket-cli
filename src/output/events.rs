@@ -3,7 +3,7 @@ use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
 use super::{
-    NONE, OutputFormat, active_status, detail_field, format_date, format_decimal,
+    DASH, OutputFormat, active_status, detail_field, format_date, format_decimal,
     print_detail_table, print_json, truncate,
 };
 
@@ -22,17 +22,17 @@ struct EventRow {
 }
 
 fn event_to_row(e: &Event) -> EventRow {
-    let title = e.title.as_deref().unwrap_or(NONE);
+    let title = e.title.as_deref().unwrap_or(DASH);
     let market_count = e
         .markets
         .as_ref()
-        .map_or_else(|| NONE.into(), |m| m.len().to_string());
+        .map_or_else(|| DASH.into(), |m| m.len().to_string());
 
     EventRow {
         title: truncate(title, 60),
         market_count,
-        volume: e.volume.map_or_else(|| NONE.into(), format_decimal),
-        liquidity: e.liquidity.map_or_else(|| NONE.into(), format_decimal),
+        volume: e.volume.map_or_else(|| DASH.into(), format_decimal),
+        liquidity: e.liquidity.map_or_else(|| DASH.into(), format_decimal),
         status: active_status(e.closed, e.active).into(),
     }
 }

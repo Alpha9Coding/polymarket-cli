@@ -2,7 +2,9 @@ use polymarket_client_sdk::gamma::types::response::{RelatedTag, Tag};
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{NONE, OutputFormat, detail_field, format_date, print_detail_table, print_json, truncate};
+use super::{
+    DASH, OutputFormat, detail_field, format_date, print_detail_table, print_json, truncate,
+};
 
 #[derive(Tabled)]
 struct TagRow {
@@ -19,9 +21,9 @@ struct TagRow {
 fn tag_to_row(t: &Tag) -> TagRow {
     TagRow {
         id: truncate(&t.id, 20),
-        label: t.label.as_deref().unwrap_or(NONE).into(),
-        slug: t.slug.as_deref().unwrap_or(NONE).into(),
-        carousel: t.is_carousel.map_or_else(|| NONE.into(), |v| v.to_string()),
+        label: t.label.as_deref().unwrap_or(DASH).into(),
+        slug: t.slug.as_deref().unwrap_or(DASH).into(),
+        carousel: t.is_carousel.map_or_else(|| DASH.into(), |v| v.to_string()),
     }
 }
 
@@ -56,9 +58,9 @@ struct RelatedTagRow {
 fn related_tag_to_row(r: &RelatedTag) -> RelatedTagRow {
     RelatedTagRow {
         id: truncate(&r.id, 20),
-        tag_id: r.tag_id.as_deref().unwrap_or(NONE).into(),
-        related_tag_id: r.related_tag_id.as_deref().unwrap_or(NONE).into(),
-        rank: r.rank.map_or_else(|| NONE.into(), |v| v.to_string()),
+        tag_id: r.tag_id.as_deref().unwrap_or(DASH).into(),
+        related_tag_id: r.related_tag_id.as_deref().unwrap_or(DASH).into(),
+        rank: r.rank.map_or_else(|| DASH.into(), |v| v.to_string()),
     }
 }
 

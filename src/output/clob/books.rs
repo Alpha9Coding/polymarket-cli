@@ -5,7 +5,7 @@ use serde_json::json;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use crate::output::{NONE, OutputFormat, truncate};
+use crate::output::{DASH, OutputFormat, truncate};
 
 pub fn print_order_book(
     result: &OrderBookSummaryResponse,
@@ -19,7 +19,7 @@ pub fn print_order_book(
                 "Last Trade: {}",
                 result
                     .last_trade_price
-                    .map_or(NONE.into(), |p| p.to_string())
+                    .map_or(DASH.into(), |p| p.to_string())
             );
             println!();
 

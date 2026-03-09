@@ -4,7 +4,7 @@ use polymarket_client_sdk::gamma::types::response::{
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{NONE, OutputFormat, print_json, truncate};
+use super::{DASH, OutputFormat, print_json, truncate};
 
 #[derive(Tabled)]
 struct SportRow {
@@ -43,7 +43,10 @@ pub fn print_sports(sports: &[SportsMetadata], output: &OutputFormat) -> anyhow:
     Ok(())
 }
 
-pub fn print_sport_types(types: &SportsMarketTypesResponse, output: &OutputFormat) -> anyhow::Result<()> {
+pub fn print_sport_types(
+    types: &SportsMarketTypesResponse,
+    output: &OutputFormat,
+) -> anyhow::Result<()> {
     match output {
         OutputFormat::Table => {
             if types.market_types.is_empty() {
@@ -76,10 +79,10 @@ struct TeamRow {
 fn team_to_row(t: &Team) -> TeamRow {
     TeamRow {
         id: t.id.to_string(),
-        name: t.name.as_deref().unwrap_or(NONE).into(),
-        league: t.league.as_deref().unwrap_or(NONE).into(),
-        record: t.record.as_deref().unwrap_or(NONE).into(),
-        abbreviation: t.abbreviation.as_deref().unwrap_or(NONE).into(),
+        name: t.name.as_deref().unwrap_or(DASH).into(),
+        league: t.league.as_deref().unwrap_or(DASH).into(),
+        record: t.record.as_deref().unwrap_or(DASH).into(),
+        abbreviation: t.abbreviation.as_deref().unwrap_or(DASH).into(),
     }
 }
 

@@ -498,7 +498,6 @@ pub async fn execute(
 
     match args.command {
         // ── Unauthenticated read commands ────────────────────────────────
-
         ClobCommand::Ok => {
             let result = unauth.ok().await?;
             print_ok(&result, output)?;
@@ -661,7 +660,6 @@ pub async fn execute(
         }
 
         // ── Authenticated trading commands (need signer for order signing) ──
-
         ClobCommand::CreateOrder {
             token,
             side,
@@ -773,7 +771,6 @@ pub async fn execute(
         }
 
         // ── Authenticated trading commands (no signer needed) ───────────
-
         ClobCommand::Orders {
             market,
             asset,
@@ -886,7 +883,6 @@ pub async fn execute(
         }
 
         // ── Authenticated reward commands ────────────────────────────────
-
         ClobCommand::Rewards { date, cursor } => {
             let client = auth::authenticated_clob_client(private_key, signature_type).await?;
             let result = client
@@ -949,7 +945,6 @@ pub async fn execute(
         }
 
         // ── Account management commands ──────────────────────────────────
-
         ClobCommand::CreateApiKey => {
             let signer = auth::resolve_signer(private_key)?;
             let result = unauth.create_or_derive_api_key(&signer, None).await?;
