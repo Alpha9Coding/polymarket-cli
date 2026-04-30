@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
+use polymarket_client_sdk_v2::data::types as sdk_data_types;
 use polymarket_client_sdk_v2::data::{
     self,
     types::request::{
@@ -9,7 +10,6 @@ use polymarket_client_sdk_v2::data::{
     },
 };
 use polymarket_client_sdk_v2::types::{Address, B256};
-use polymarket_client_sdk_v2::data::types as sdk_data_types;
 
 use crate::output::OutputFormat;
 use crate::output::data::{
