@@ -1,5 +1,5 @@
-pub(crate) const USDC_ADDRESS_STR: &str = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
-pub(crate) const USDC_DECIMALS: u32 = 6;
+pub(crate) const PUSD_ADDRESS_STR: &str = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB";
+pub(crate) const PUSD_DECIMALS: u32 = 6;
 
 pub(crate) mod approve;
 pub(crate) mod bridge;

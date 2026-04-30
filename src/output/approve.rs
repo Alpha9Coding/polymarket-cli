@@ -8,9 +8,9 @@ use super::OutputFormat;
 pub struct ApprovalStatus {
     pub contract_name: String,
     pub contract_address: String,
-    pub usdc_allowance: U256,
+    pub pusd_allowance: U256,
     pub ctf_approved: bool,
-    pub usdc_error: Option<String>,
+    pub pusd_error: Option<String>,
     pub ctf_error: Option<String>,
 }
 
@@ -18,8 +18,8 @@ pub struct ApprovalStatus {
 struct ApprovalRow {
     #[tabled(rename = "Contract")]
     contract: String,
-    #[tabled(rename = "USDC")]
-    usdc: String,
+    #[tabled(rename = "pUSD")]
+    pusd: String,
     #[tabled(rename = "CTF Tokens")]
     ctf: String,
 }
@@ -30,9 +30,9 @@ fn format_allowance(allowance: U256) -> String {
     } else if allowance == U256::ZERO {
         "\u{2717} None".to_string()
     } else {
-        let usdc_decimals = U256::from(1_000_000);
-        let whole = allowance / usdc_decimals;
-        format!("\u{2713} {whole} USDC")
+        let pusd_decimals = U256::from(1_000_000);
+        let whole = allowance / pusd_decimals;
+        format!("\u{2713} {whole} pUSD")
     }
 }
 
@@ -53,12 +53,12 @@ pub fn print_approval_status(statuses: &[ApprovalStatus], output: &OutputFormat)
                     let mut obj = serde_json::json!({
                         "contract": s.contract_name,
                         "address": s.contract_address,
-                        "usdc_allowance": s.usdc_allowance.to_string(),
-                        "usdc_approved": s.usdc_allowance > U256::ZERO,
+                        "pusd_allowance": s.pusd_allowance.to_string(),
+                        "pusd_approved": s.pusd_allowance > U256::ZERO,
                         "ctf_approved": s.ctf_approved,
                     });
-                    if let Some(ref err) = s.usdc_error {
-                        obj["usdc_error"] = serde_json::Value::String(err.clone());
+                    if let Some(ref err) = s.pusd_error {
+                        obj["pusd_error"] = serde_json::Value::String(err.clone());
                     }
                     if let Some(ref err) = s.ctf_error {
                         obj["ctf_error"] = serde_json::Value::String(err.clone());
@@ -74,10 +74,10 @@ pub fn print_approval_status(statuses: &[ApprovalStatus], output: &OutputFormat)
                 .iter()
                 .map(|s| ApprovalRow {
                     contract: s.contract_name.clone(),
-                    usdc: if let Some(ref err) = s.usdc_error {
+                    pusd: if let Some(ref err) = s.pusd_error {
                         format!("\u{2717} RPC error: {err}")
                     } else {
-                        format_allowance(s.usdc_allowance)
+                        format_allowance(s.pusd_allowance)
                     },
                     ctf: if let Some(ref err) = s.ctf_error {
                         format!("\u{2717} RPC error: {err}")
