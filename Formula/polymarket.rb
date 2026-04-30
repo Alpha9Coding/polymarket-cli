@@ -7,24 +7,24 @@ class Polymarket < Formula
   on_macos do
     on_intel do
       url "https://github.com/Alpha9Coding/polymarket-cli/releases/download/v#{version}/polymarket-v#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "9964f6c151e92d86d3aa85d8811a2354d0f84508486c35e0817c46f015ea39bc"
+      sha256 "92461eacaab1ce917a6d17bf1b4d4bd96be774bb911de35cba78bd1fdd1b3e4e"
     end
 
     on_arm do
       url "https://github.com/Alpha9Coding/polymarket-cli/releases/download/v#{version}/polymarket-v#{version}-aarch64-apple-darwin.tar.gz"
-      sha256 "61208f37d963d632c2e56751dbfe266e69cc8ad5c6fb1ead3ee0c53507d9e80d"
+      sha256 "68be258261c1606a81dedf35fc145bf2a96bd26eac7542bac6be6553ce41dee1"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/Alpha9Coding/polymarket-cli/releases/download/v#{version}/polymarket-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "def946c1af1fae42ad5ac60912a191dbf6911c50f348cbd714b275979dfd3ae5"
+      sha256 "5e51c2c57da68f0289671f7bd333922cfdd9721444b2735264df98135793b495"
     end
 
     on_arm do
       url "https://github.com/Alpha9Coding/polymarket-cli/releases/download/v#{version}/polymarket-v#{version}-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "f91be774cf17f29861f02802054f3af030de50c6b793557f953861a47e627eff"
+      sha256 "c2081d8466a094b35f340511d4e7e93926e3e22f592d0af2178ad61a21a39ede"
     end
   end
 
