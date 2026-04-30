@@ -5,11 +5,29 @@ use anyhow::{Context, Result};
 use polymarket_client_sdk_v2::auth::state::Authenticated;
 use polymarket_client_sdk_v2::auth::{LocalSigner, Normal, Signer as _};
 use polymarket_client_sdk_v2::clob::types::SignatureType;
+use polymarket_client_sdk_v2::clob::{Client, Config};
 use polymarket_client_sdk_v2::{POLYGON, clob};
 
 use crate::config;
 
 const DEFAULT_RPC_URL: &str = "https://polygon.drpc.org";
+
+/// Polymarket CLOB host. The SDK's default `clob-v2.polymarket.com` 301-redirects
+/// every path (including POST `/auth/api-key`) to `clob.polymarket.com`; reqwest's
+/// default redirect policy downgrades POST→GET on 301, which breaks api-key creation
+/// (server returns 405 for GET on that path) and order submission. Hitting the canonical
+/// host directly avoids the redirect entirely. Override with `POLYMARKET_CLOB_HOST` for
+/// testing or future migrations.
+const DEFAULT_CLOB_HOST: &str = "https://clob.polymarket.com";
+
+fn clob_host() -> String {
+    std::env::var("POLYMARKET_CLOB_HOST").unwrap_or_else(|_| DEFAULT_CLOB_HOST.to_string())
+}
+
+pub fn unauthenticated_clob_client() -> Result<Client> {
+    Client::new(&clob_host(), Config::default())
+        .context("Failed to construct CLOB client (bad POLYMARKET_CLOB_HOST?)")
+}
 
 fn rpc_url() -> String {
     std::env::var("POLYMARKET_RPC_URL").unwrap_or_else(|_| DEFAULT_RPC_URL.to_string())
@@ -47,7 +65,7 @@ pub async fn authenticate_with_signer(
 ) -> Result<clob::Client<Authenticated<Normal>>> {
     let sig_type = parse_signature_type(&config::resolve_signature_type(signature_type_flag)?);
 
-    clob::Client::default()
+    unauthenticated_clob_client()?
         .authentication_builder(signer)
         .signature_type(sig_type)
         .authenticate()

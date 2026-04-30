@@ -16,7 +16,6 @@ use crate::output::clob::{
 use anyhow::Result;
 use chrono::NaiveDate;
 use clap::{Args, Subcommand};
-use polymarket_client_sdk_v2::clob;
 use polymarket_client_sdk_v2::clob::types::{
     Amount, AssetType, Interval, OrderType, Side, TimeRange,
     request::{
@@ -496,7 +495,7 @@ pub async fn execute(
     signature_type: Option<&str>,
 ) -> Result<()> {
     // Unauthenticated client — cheap to construct, used by read commands and CreateApiKey.
-    let unauth = clob::Client::default();
+    let unauth = auth::unauthenticated_clob_client()?;
     let output = &output;
 
     match args.command {
