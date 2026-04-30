@@ -9,6 +9,7 @@ use polymarket_client_sdk_v2::data::{
     },
 };
 use polymarket_client_sdk_v2::types::{Address, B256};
+use polymarket_client_sdk_v2::data::types as sdk_data_types;
 
 use crate::output::OutputFormat;
 use crate::output::data::{
@@ -37,6 +38,14 @@ pub enum DataCommand {
         /// Pagination offset
         #[arg(long)]
         offset: Option<i32>,
+
+        /// Sort by: tokens (default), current, initial, cash-pnl, percent-pnl
+        #[arg(long)]
+        sort_by: Option<CliPositionSortBy>,
+
+        /// Sort direction: asc or desc (default: desc)
+        #[arg(long)]
+        sort_direction: Option<CliSortDirection>,
     },
 
     /// Get closed positions for a wallet address
@@ -51,6 +60,14 @@ pub enum DataCommand {
         /// Pagination offset
         #[arg(long)]
         offset: Option<i32>,
+
+        /// Sort by: realized-pnl (default), title, price, avg-price, timestamp
+        #[arg(long)]
+        sort_by: Option<CliClosedPositionSortBy>,
+
+        /// Sort direction: asc or desc (default: desc)
+        #[arg(long)]
+        sort_direction: Option<CliSortDirection>,
     },
 
     /// Get total position value for a wallet address
@@ -191,17 +208,78 @@ impl From<OrderBy> for polymarket_client_sdk_v2::data::types::LeaderboardOrderBy
     }
 }
 
+#[derive(Clone, Debug, clap::ValueEnum)]
+pub enum CliPositionSortBy {
+    Tokens,
+    Current,
+    Initial,
+    CashPnl,
+    PercentPnl,
+}
+
+impl From<CliPositionSortBy> for sdk_data_types::PositionSortBy {
+    fn from(v: CliPositionSortBy) -> Self {
+        match v {
+            CliPositionSortBy::Tokens => Self::Tokens,
+            CliPositionSortBy::Current => Self::Current,
+            CliPositionSortBy::Initial => Self::Initial,
+            CliPositionSortBy::CashPnl => Self::CashPnl,
+            CliPositionSortBy::PercentPnl => Self::PercentPnl,
+        }
+    }
+}
+
+#[derive(Clone, Debug, clap::ValueEnum)]
+pub enum CliClosedPositionSortBy {
+    RealizedPnl,
+    Title,
+    Price,
+    AvgPrice,
+    Timestamp,
+}
+
+impl From<CliClosedPositionSortBy> for sdk_data_types::ClosedPositionSortBy {
+    fn from(v: CliClosedPositionSortBy) -> Self {
+        match v {
+            CliClosedPositionSortBy::RealizedPnl => Self::RealizedPnl,
+            CliClosedPositionSortBy::Title => Self::Title,
+            CliClosedPositionSortBy::Price => Self::Price,
+            CliClosedPositionSortBy::AvgPrice => Self::AvgPrice,
+            CliClosedPositionSortBy::Timestamp => Self::Timestamp,
+        }
+    }
+}
+
+#[derive(Clone, Debug, clap::ValueEnum)]
+pub enum CliSortDirection {
+    Asc,
+    Desc,
+}
+
+impl From<CliSortDirection> for sdk_data_types::SortDirection {
+    fn from(v: CliSortDirection) -> Self {
+        match v {
+            CliSortDirection::Asc => Self::Asc,
+            CliSortDirection::Desc => Self::Desc,
+        }
+    }
+}
+
 pub async fn execute(client: &data::Client, args: DataArgs, output: OutputFormat) -> Result<()> {
     match args.command {
         DataCommand::Positions {
             address,
             limit,
             offset,
+            sort_by,
+            sort_direction,
         } => {
             let request = PositionsRequest::builder()
                 .user(address)
                 .limit(limit)?
                 .maybe_offset(offset)?
+                .maybe_sort_by(sort_by.map(Into::into))
+                .maybe_sort_direction(sort_direction.map(Into::into))
                 .build();
 
             let positions = client.positions(&request).await?;
@@ -212,11 +290,15 @@ pub async fn execute(client: &data::Client, args: DataArgs, output: OutputFormat
             address,
             limit,
             offset,
+            sort_by,
+            sort_direction,
         } => {
             let request = ClosedPositionsRequest::builder()
                 .user(address)
                 .limit(limit)?
                 .maybe_offset(offset)?
+                .maybe_sort_by(sort_by.map(Into::into))
+                .maybe_sort_direction(sort_direction.map(Into::into))
                 .build();
 
             let positions = client.closed_positions(&request).await?;

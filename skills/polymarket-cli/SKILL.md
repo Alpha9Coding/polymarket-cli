@@ -92,6 +92,18 @@ polymarket data closed-positions 0xWALLET
 polymarket data value           0xWALLET
 polymarket data trades          0xWALLET --limit 50
 polymarket data activity        0xWALLET
+
+# Sort flags (v0.2.1+) on positions / closed-positions:
+#   positions       --sort-by  tokens (default) | current | initial | cash-pnl | percent-pnl
+#   closed-positions --sort-by realized-pnl (default) | timestamp | title | price | avg-price
+#   --sort-direction asc | desc (default desc)
+#
+# IMPORTANT: closed-positions defaults to REALIZED-PNL DESC, NOT timestamp.
+# Without --sort-by timestamp the first page is the wallet's BIGGEST WINNERS
+# all-time, which gives a wildly skewed PnL summary if you only fetch 50.
+# For a true accounting, page through ALL closed positions OR sort by timestamp
+# and bound by date.
+polymarket data closed-positions 0xWALLET --sort-by timestamp --sort-direction desc --limit 50
 polymarket data holders         0xCONDITION
 polymarket data open-interest   0xCONDITION
 polymarket data volume          <event-id>
@@ -237,7 +249,9 @@ polymarket -o json events get <event-slug> | jq -r '.markets[] | "\(.question)\t
 
 ### JSON shapes worth knowing
 
-Different read commands return different field names — pipe to `jq` only after checking. The most-used shapes:
+**Field-naming convention — read this first.** The CLI emits **snake_case** (`realized_pnl`, `avg_price`, `total_bought`, `cur_price`, `percent_pnl`, `event_slug`, …) even when the upstream Polymarket data API uses **camelCase** (`realizedPnl`, `avgPrice`, ...). If you copy field names from the [data API docs](https://data-api.polymarket.com) or paste a `curl … | jq` query into the CLI flow, the lookups silently return `null`. Always inspect a single record first (`polymarket -o json data closed-positions <addr> --limit 1 | jq '.[0]'`) before writing aggregations.
+
+Other shapes:
 
 ```bash
 # .midpoint  — string decimal, NOT .mid

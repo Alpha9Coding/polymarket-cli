@@ -1,7 +1,7 @@
 class Polymarket < Formula
   desc "CLI for Polymarket — browse markets, trade, and manage positions"
   homepage "https://github.com/Alpha9Coding/polymarket-cli"
-  version "0.2.0"
+  version "0.2.1"
   license "MIT"
 
   on_macos do
