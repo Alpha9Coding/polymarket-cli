@@ -5,8 +5,8 @@ use alloy::primitives::U256;
 use alloy::sol;
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
-use polymarket_client_sdk::types::{Address, address};
-use polymarket_client_sdk::{POLYGON, contract_config};
+use polymarket_client_sdk_v2::types::{Address, address};
+use polymarket_client_sdk_v2::{POLYGON, contract_config};
 
 use crate::auth;
 use crate::output::OutputFormat;
@@ -58,14 +58,28 @@ fn approval_targets() -> Result<Vec<ApprovalTarget>> {
 
     let mut targets = vec![
         ApprovalTarget {
-            name: "CTF Exchange",
+            name: "CTF Exchange (v1)",
             address: config.exchange,
         },
         ApprovalTarget {
-            name: "Neg Risk Exchange",
+            name: "Neg Risk Exchange (v1)",
             address: neg_risk_config.exchange,
         },
     ];
+
+    if let Some(exchange_v2) = config.exchange_v2 {
+        targets.push(ApprovalTarget {
+            name: "CTF Exchange (v2)",
+            address: exchange_v2,
+        });
+    }
+
+    if let Some(exchange_v2) = neg_risk_config.exchange_v2 {
+        targets.push(ApprovalTarget {
+            name: "Neg Risk Exchange (v2)",
+            address: exchange_v2,
+        });
+    }
 
     if let Some(adapter) = neg_risk_config.neg_risk_adapter {
         targets.push(ApprovalTarget {
@@ -97,7 +111,7 @@ async fn check(
         addr
     } else {
         let signer = auth::resolve_signer(private_key)?;
-        polymarket_client_sdk::auth::Signer::address(&signer)
+        polymarket_client_sdk_v2::auth::Signer::address(&signer)
     };
 
     let provider = auth::create_readonly_provider().await?;

@@ -16,8 +16,8 @@ use crate::output::clob::{
 use anyhow::Result;
 use chrono::NaiveDate;
 use clap::{Args, Subcommand};
-use polymarket_client_sdk::clob;
-use polymarket_client_sdk::clob::types::{
+use polymarket_client_sdk_v2::clob;
+use polymarket_client_sdk_v2::clob::types::{
     Amount, AssetType, Interval, OrderType, Side, TimeRange,
     request::{
         BalanceAllowanceRequest, CancelMarketOrderRequest, DeleteNotificationsRequest,
@@ -25,7 +25,7 @@ use polymarket_client_sdk::clob::types::{
         PriceHistoryRequest, PriceRequest, SpreadRequest, TradesRequest, UserRewardsEarningRequest,
     },
 };
-use polymarket_client_sdk::types::{B256, Decimal, U256};
+use polymarket_client_sdk_v2::types::{B256, Decimal, U256};
 
 #[derive(Args)]
 pub struct ClobArgs {
