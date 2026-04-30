@@ -7,28 +7,24 @@ class Polymarket < Formula
   on_macos do
     on_intel do
       url "https://github.com/Alpha9Coding/polymarket-cli/releases/download/v#{version}/polymarket-v#{version}-x86_64-apple-darwin.tar.gz"
-      # TODO: regenerate after fork release
-      sha256 "ec1dee1e1b7a66e8d2fc60ceb5e212b9f78e403b8079759a3b29b885cc4bb7ef"
+      sha256 "7b9ac5b923a9d9d03f0a6597963992b3c2012255eb4f4362f731b2c057ed32fc"
     end
 
     on_arm do
       url "https://github.com/Alpha9Coding/polymarket-cli/releases/download/v#{version}/polymarket-v#{version}-aarch64-apple-darwin.tar.gz"
-      # TODO: regenerate after fork release
-      sha256 "c054c298417340d23995aa1181a2e47eea5bf7cb335c5417eb78e714fc433ac9"
+      sha256 "67892caa5abe5d33a9183eb23de72b5ef905e662b8dce899021e5635627342fd"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/Alpha9Coding/polymarket-cli/releases/download/v#{version}/polymarket-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      # TODO: regenerate after fork release
-      sha256 "b9f70ad1e3553de8a6546025ea1c7d14d69d51949c7609cac4cf8d9c686baa72"
+      sha256 "c54fd5b2365f2d2ca151a317200606438ed0fe61326d20ea29f8dfd44ba19c45"
     end
 
     on_arm do
       url "https://github.com/Alpha9Coding/polymarket-cli/releases/download/v#{version}/polymarket-v#{version}-aarch64-unknown-linux-gnu.tar.gz"
-      # TODO: regenerate after fork release
-      sha256 "4c94f152404483cdfe6fa3fed60b633a36f2fc813f3ee78091e6046423144292"
+      sha256 "45dc2b4e95102a83900f9913ca95a17fa7193eaab65f5189e07dcfcc73cdb687"
     end
   end
 
