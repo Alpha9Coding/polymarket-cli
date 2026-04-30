@@ -338,24 +338,49 @@ polymarket clob update-balance --asset-type collateral
 
 **Order types**: `GTC` (default), `FOK`, `GTD`, `FAK`. Add `--post-only` for limit orders.
 
-### Race-test runner (`clob race`, v0.3.0+)
+### Race-test runner (`clob race`, v0.3.0+; multi-signer v0.5.0+)
 
 Single-process harness for measuring CLOB submit/cancel timing with no server-roundtrip blocking. All orders are pre-built, signed, and have their on-chain `order_id` (the EIP-712 hash) computed locally **before** the timed loop starts, so a `cancel` step can fire before the prior `submit`'s response has come back.
 
+**Single-wallet** (cancel-before-place test):
+
 ```bash
 YES=0x...        # YES outcome's CLOB token id
-NO=0x...         # NO outcome's CLOB token id (complementary, sums to ~$1)
 
-# Place a maker, wait 10ms, cancel — without waiting for the place response.
 polymarket clob race \
   --order m1=$YES:buy:0.30:5 \
   --step submit:m1 --step wait:10 --step cancel:m1 \
   --warmup -o json
 ```
 
-The DSL uses repeatable `--order LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE]` and `--step submit:LABEL | cancel:LABEL | wait:MS`. Each order gets its own token (so cross-book maker/taker scenarios via Polymarket's complementary mint mechanism are first-class). Add `--dry-run` to validate the plan + sign + derive `order_id` without submitting; add `--repeat N` to run the whole plan N times for distribution stats.
+**Multi-wallet** (maker + taker race — required for any test where a maker and taker need to actually match, since Polymarket forbids self-matching):
 
-The output is structured JSON with `t0_unix_ms` plus per-action `t_send_us` / `t_recv_us` (monotonic from `Instant::now()`), plus the full server response per submit/cancel. See [skills/polymarket-cli/SKILL.md](skills/polymarket-cli/SKILL.md) for the four canonical race scenarios (cancel-before-place, FAK-vs-cancel, GTC-with-pre-cancel-maker, GTC-with-pre-cancel-taker).
+```bash
+ALICE=0x...      # maker private key (pre-registered on Polymarket: web login + approve set)
+BOB=0x...        # taker private key (same prereqs)
+YES=0x...
+NO=0x...
+
+# place alice's maker → 10ms → bob's FAK taker → cancel alice's maker
+polymarket clob race \
+  --signer alice=$ALICE \
+  --signer bob=$BOB \
+  --order maker=$YES:buy:0.30:5@alice \
+  --order fak=$NO:buy:0.70:5:FAK@bob \
+  --step submit:maker --step wait:10 --step submit:fak --step cancel:maker \
+  --warmup -o json
+```
+
+**DSL summary**:
+
+- `--signer LABEL=PRIVATE_KEY[:SIG_TYPE]` (repeatable, optional) — when used, every `--order` MUST tag a signer via `@LABEL`. Per-signer sig type so one wallet can be EOA while another is proxy.
+- `--order LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE][@SIGNER]` (repeatable) — token is per-order so cross-book scenarios (maker on YES, taker on NO via Polymarket's complementary mint match) are first-class.
+- `--step submit:LABEL | cancel:LABEL | wait:MS` (repeatable, ordered) — submit/cancel each fire `tokio::spawn` and don't block; only `wait` blocks the step loop.
+- `--dry-run` validates the plan + signs + derives `order_id` without submitting.
+- `--repeat N` runs the whole plan N times with fresh salts for distribution stats.
+- `--warmup` fires a cheap `clob ok` to warm the TCP/TLS pool before timing starts.
+
+Output is structured JSON with `t0_unix_ms` plus per-action `t_send_us` / `t_recv_us` (monotonic from `Instant::now()`), plus the full server response and the owning `signer` per submit/cancel. See [skills/polymarket-cli/SKILL.md](skills/polymarket-cli/SKILL.md) for the four canonical scenarios (cancel-before-place, FAK-vs-cancel, GTC-with-pre-cancel-maker, GTC-with-pre-cancel-taker) with both single- and multi-signer variants.
 
 ### Rewards & API Keys (CLOB, authenticated)
 
