@@ -207,20 +207,77 @@ Has command history. All commands work the same as the CLI, just without the `po
 
 ## Common Patterns
 
+### Resolve a Polymarket URL to a CLI command
+
+Users often paste `https://polymarket.com/...` URLs. Strip the path and route by segment:
+
+| URL form | Slug source | Command |
+|---|---|---|
+| `polymarket.com/event/<slug>` | last segment | `polymarket events get <slug>` |
+| `polymarket.com/event/<event-slug>/<market-slug>` | second-to-last segment | `polymarket markets get <market-slug>` |
+| `polymarket.com/market/<slug>` | last segment | `polymarket markets get <slug>` |
+| `polymarket.com/markets/<digits>` | last segment (numeric) | `polymarket markets get <id>` |
+
+Drop trailing query strings (`?utm=...`, `#tvl`) before passing the slug. If unsure, try `events get` first — it returns the parent event and all child markets in one call.
+
 ### Resolve a slug to a CLOB token ID (for clob commands)
 
-`clob` commands take CLOB token IDs (huge decimal strings), but humans usually have slugs/IDs. Pull tokens from `markets get`:
+`clob` commands take CLOB token IDs (long hex strings or large decimals), but humans usually have slugs/IDs. Pull tokens from `markets get`:
 
 ```bash
 polymarket -o json markets get <slug-or-id> | jq -r '.clobTokenIds | fromjson | .[0]'
-# returns the YES token; .[1] is NO
+# returns the YES (Up) token; .[1] is NO (Down)
 ```
+
+For an event with many markets, fan out:
+
+```bash
+polymarket -o json events get <event-slug> | jq -r '.markets[] | "\(.question)\t\(.clobTokenIds | fromjson | .[0])"'
+```
+
+### JSON shapes worth knowing
+
+Different read commands return different field names — pipe to `jq` only after checking. The most-used shapes:
+
+```bash
+# .midpoint  — string decimal, NOT .mid
+polymarket -o json clob midpoint <token>     # → {"midpoint": "0.4565"}
+
+# .bids / .asks — arrays of {price, size} (price strings, ascending in .bids, ascending in .asks too — best bid is LAST in .bids, best ask is FIRST in .asks)
+polymarket -o json clob book <token>         # → {bids:[{price,size},...], asks:[...], lastTradePrice, market, asset}
+
+# Use these to grab top-of-book in one shot:
+polymarket -o json clob book <token> | jq '{
+  best_bid: (.bids | sort_by(.price | tonumber) | last),
+  best_ask: (.asks | sort_by(.price | tonumber) | first),
+  spread: ((.asks | min_by(.price | tonumber) | .price | tonumber) - (.bids | max_by(.price | tonumber) | .price | tonumber))
+}'
+```
+
+Batch endpoints (`clob midpoints`, `clob batch-prices`) take comma-separated tokens but **only accept decimal token IDs**, not the hex form. If you have hex tokens, loop over `clob midpoint` one at a time instead — slower but works.
 
 ### Watch a market
 
 ```bash
 TOKEN=$(polymarket -o json markets get <slug> | jq -r '.clobTokenIds | fromjson | .[0]')
 watch -n 5 "polymarket clob midpoint $TOKEN"
+```
+
+### Show top-of-book across N buckets of a multi-outcome event
+
+Pattern from event-with-N-buckets analysis (e.g. "Elon tweet count 140-159 / 160-179 / ..."). Builds a TSV of `bucket_label \t token_id` then loops `clob book` for top-of-book per bucket:
+
+```bash
+polymarket -o json events get <event-slug> | jq -r '.markets[] |
+  "\(.question | capture("(?<b>\\d+(-\\d+|\\+))").b)\t\(.clobTokenIds | fromjson | .[0])"' \
+  | sort -V > /tmp/buckets.tsv
+
+while IFS=$'\t' read -r bucket token; do
+  J=$(polymarket -o json clob book "$token")
+  bid=$(echo "$J" | jq -r '(.bids // []) | sort_by(.price | tonumber) | last | "\(.price)@\(.size)"')
+  ask=$(echo "$J" | jq -r '(.asks // []) | sort_by(.price | tonumber) | first | "\(.price)@\(.size)"')
+  printf "%-12s  bid=%-15s  ask=%-15s\n" "$bucket" "$bid" "$ask"
+done < /tmp/buckets.tsv
 ```
 
 ### Daily P&L from closed positions (CLI version of polymarket-data skill)
