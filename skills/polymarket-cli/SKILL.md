@@ -155,71 +155,96 @@ Order types: `GTC` (default), `FOK`, `GTD`, `FAK`. Add `--post-only` to a limit 
 
 `--amount` for `market-order buy` is **pUSD** (not USDC). For `market-order sell` it's shares.
 
-### Race-test runner (`clob race`, v0.3.0+)
+### Race-test runner (`clob race`, v0.3.0+; multi-signer v0.5.0+)
 
 Single-process, single-tokio-runtime test harness for measuring submit/cancel timing without server roundtrip blocking. All orders are pre-signed and their EIP-712 hashes (the `order_id`) computed locally BEFORE timing starts, so a `cancel` step can fire by-id even before the prior `submit`'s response has come back.
 
 ```bash
 polymarket clob race \
-  --order LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE] \   # repeatable
+  [--signer LABEL=PRIVATE_KEY[:SIG_TYPE]] \      # repeatable; needed for cross-wallet matching
+  --order LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE][@SIGNER] \   # repeatable
   --step submit:LABEL | cancel:LABEL | wait:MS \  # repeatable, ordered
   [--repeat N] [--warmup] [--dry-run] \
   [-o json]
 ```
 
-**Order spec**: `LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE]`
+**Order spec**: `LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE][@SIGNER]`
 - LABEL: any string (e.g. `m1`, `t1`)
 - TOKEN: full CLOB token id (`0x…` hex or large decimal). Per-order so cross-book / multi-market scenarios work.
 - SIDE: `buy` | `sell`
 - PRICE: decimal (e.g. `0.30`)
 - SIZE: shares (e.g. `5`)
 - TYPE: `GTC` (default) | `FOK` | `GTD` | `FAK`
+- SIGNER (optional): `@LABEL` references a `--signer` definition. Required when `--signer` is used; forbidden when it isn't.
+
+**Signer spec** (v0.5.0+): `LABEL=PRIVATE_KEY[:SIG_TYPE]`
+- LABEL: any string (e.g. `alice`, `bob`)
+- PRIVATE_KEY: `0x…` hex private key
+- SIG_TYPE: `proxy` (default) | `eoa` | `gnosis-safe`. Per-signer, so one wallet can be EOA while another is proxy.
+
+**Why multi-signer matters**: Polymarket forbids self-matching, so any test where a maker and a taker need to actually collide must use two different wallets. Single-signer mode (no `--signer`) is fine for scenario 1 (place → cancel one wallet); scenarios 2/3/4 require `--signer alice=… --signer bob=…` plus `@alice` / `@bob` on the orders.
 
 **Step spec**: `submit:LABEL` | `cancel:LABEL` | `wait:MS`
-- submit fires `tokio::spawn(post_order)` — does NOT block; the loop moves on
-- cancel fires `tokio::spawn(cancel_order)` using the locally-computed order_id — does NOT block
+- submit fires `tokio::spawn(post_order)` on the order's signer's authenticated client — does NOT block; the loop moves on
+- cancel fires `tokio::spawn(cancel_order)` on the SAME order's signer (cancel is L2-authenticated so server checks ownership) — does NOT block
 - wait blocks the step loop with `tokio::time::sleep` (precise to scheduler ~1ms)
 
-After all steps the runner joins all spawned handles and emits a single JSON record with `t0_unix_ms`, the orders block, and an `actions` array with `t_send_us` / `t_recv_us` per submit/cancel.
+After all steps the runner joins all spawned handles and emits a single JSON record with `t0_unix_ms`, the orders block (each tagged with `signer` + `maker` address + `order_id`), and an `actions` array with `t_send_us` / `t_recv_us` / `signer` per submit/cancel.
 
-**Polymarket matching reminder**: to match a maker `BUY YES @ p`, a taker can either be `SELL YES @ ≤p` (same token, opposite side) OR `BUY NO @ ≥(1-p)` (different token, complementary mint match). For race tests of this complementary path, m1 and t1 use **different** token ids — that's why `--order` carries the token per-line.
+**Polymarket matching reminder**: to match a maker `BUY YES @ p`, a taker can either be `SELL YES @ ≤p` (same token, opposite side) OR `BUY NO @ ≥(1-p)` (different token, complementary mint match). For race tests of this complementary path, the maker and taker orders MUST come from different wallets (Polymarket rejects self-matching) and use **different** token ids.
 
 **4 canonical scenarios**:
 
+Single-signer (scenario 1 only):
+
 ```bash
 YES=0x...   # YES token id
-NO=0x...    # NO token id (complementary)
 
 # 1. place → 10ms → cancel — tests "can we cancel before server acks our place?"
 polymarket clob race \
   --order m1=$YES:buy:0.30:5 \
   --step submit:m1 --step wait:10 --step cancel:m1 \
   -o json
+```
+
+Multi-signer (scenarios 2/3/4 — alice = maker wallet, bob = taker wallet):
+
+```bash
+ALICE=0x...   # maker private key (must be pre-registered on Polymarket: web login + approve set)
+BOB=0x...     # taker private key (same pre-reqs; bob's wallet needs the relevant tokens)
+YES=0x...
+NO=0x...
 
 # 2. place maker → 10ms → place FAK taker → cancel maker
 #    tests "does FAK still match a maker the user is racing to cancel?"
 polymarket clob race \
-  --order m1=$YES:buy:0.30:5 \
-  --order t1=$NO:buy:0.70:5:FAK \
-  --step submit:m1 --step wait:10 --step submit:t1 --step cancel:m1 \
-  -o json
+  --signer alice=$ALICE \
+  --signer bob=$BOB \
+  --order maker=$YES:buy:0.30:5@alice \
+  --order fak=$NO:buy:0.70:5:FAK@bob \
+  --step submit:maker --step wait:10 --step submit:fak --step cancel:maker \
+  --warmup -o json
 
 # 3. place maker → 10ms → place GTC taker → cancel maker → 10ms → cancel GTC
 polymarket clob race \
-  --order m1=$YES:buy:0.30:5 \
-  --order t1=$NO:buy:0.70:5 \
-  --step submit:m1 --step wait:10 --step submit:t1 \
-  --step cancel:m1 --step wait:10 --step cancel:t1 \
-  -o json
+  --signer alice=$ALICE --signer bob=$BOB \
+  --order maker=$YES:buy:0.30:5@alice \
+  --order taker=$NO:buy:0.70:5@bob \
+  --step submit:maker --step wait:10 --step submit:taker \
+  --step cancel:maker --step wait:10 --step cancel:taker \
+  --warmup -o json
 
-# 4. same as 3 but cancel GTC first, then maker
+# 4. same as 3 but cancel taker first, then maker
 polymarket clob race \
-  --order m1=$YES:buy:0.30:5 \
-  --order t1=$NO:buy:0.70:5 \
-  --step submit:m1 --step wait:10 --step submit:t1 \
-  --step cancel:t1 --step wait:10 --step cancel:m1 \
-  -o json
+  --signer alice=$ALICE --signer bob=$BOB \
+  --order maker=$YES:buy:0.30:5@alice \
+  --order taker=$NO:buy:0.70:5@bob \
+  --step submit:maker --step wait:10 --step submit:taker \
+  --step cancel:taker --step wait:10 --step cancel:maker \
+  --warmup -o json
 ```
+
+**Multi-signer prerequisites**: each `--signer` wallet needs to have already been bootstrapped (web login → API key registered on server, plus `polymarket approve set` from that wallet). The race command will L1+L2 authenticate each signer once during setup; if a wallet's API key isn't on the server, you'll get a 400 from `derive-api-key` per the v0.3.2 verbose error report.
 
 **Useful flags**:
 - `--dry-run` — build + sign + compute order_ids; print the plan; no server-side submit. Use to validate the spec end-to-end before live trading.
