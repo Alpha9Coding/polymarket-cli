@@ -131,6 +131,35 @@ Most commands work without a wallet — browsing markets, viewing order books, c
 - On-chain operations (`approve set`, `ctf split/merge/redeem`)
 - Reward and API key management (`clob rewards`, `clob create-api-key`)
 
+### Trading prerequisites (first-time setup)
+
+Before placing your first order, do these once in this exact order:
+
+```bash
+# 1. Wallet config (sets ~/.config/polymarket/config.json)
+polymarket setup
+
+# 2. Bootstrap L2 API credentials. NOTE: Polymarket's Cloudflare WAF blocks
+#    POST /auth/* from datacenter IPs (AWS, GCP, etc.) with a 403. If you hit
+#    this, run create-api-key from a residential IP (your laptop / home) and
+#    then scp ~/.config/polymarket/config.json to the server.
+polymarket clob create-api-key
+
+# 3. Deposit pUSD to your proxy wallet (address printed by `polymarket setup`).
+#    Use polymarket bridge or transfer pUSD directly on Polygon.
+
+# 4. Send on-chain approvals so the V1 + V2 CTF exchanges can move your pUSD
+#    and outcome tokens. ~8 transactions, requires MATIC for gas. WITHOUT
+#    this step every trade will revert.
+polymarket approve set
+
+# 5. Verify
+polymarket clob balance --asset-type collateral   # should show your pUSD
+polymarket approve check                           # all rows ✓ Approved
+```
+
+After step 4, ordinary trading endpoints (`POST /order`, `/cancel`, …) are not WAF-blocked, so trading from a server is fine — only the one-time API key bootstrap (`/auth/*` POSTs) needs to happen from a residential IP.
+
 ## Output Formats
 
 Every command supports `--output table` (default) and `--output json`.

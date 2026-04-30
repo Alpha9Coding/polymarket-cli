@@ -949,8 +949,34 @@ pub async fn execute(
         // ── Account management commands ──────────────────────────────────
         ClobCommand::CreateApiKey => {
             let signer = auth::resolve_signer(private_key)?;
-            let result = unauth.create_or_derive_api_key(&signer, None).await?;
-            print_create_api_key(&result, output)?;
+            // Call create + derive separately so failures from BOTH endpoints are
+            // visible — the SDK's create_or_derive_api_key swallows the create
+            // error which masks Cloudflare WAF blocks (403) on POST /auth/api-key.
+            // See README's "Setup from datacenter IPs" note.
+            let create_err = match unauth.create_api_key(&signer, None).await {
+                Ok(creds) => {
+                    print_create_api_key(&creds, output)?;
+                    return Ok(());
+                }
+                Err(e) => format!("{e:#}"),
+            };
+            match unauth.derive_api_key(&signer, None).await {
+                Ok(creds) => {
+                    print_create_api_key(&creds, output)?;
+                }
+                Err(derive_err) => {
+                    anyhow::bail!(
+                        "API key bootstrap failed.\n  POST /auth/api-key      \
+                         (create):  {create_err}\n  GET  /auth/derive-api-key \
+                         (derive): {derive_err:#}\n\nIf the create step shows a \
+                         Cloudflare 403, you are likely on a datacenter IP — \
+                         Polymarket's WAF blocks POST /auth/* from cloud egress \
+                         IPs. Run `polymarket clob create-api-key` once from a \
+                         residential IP, then copy ~/.config/polymarket/config.json \
+                         to the server."
+                    );
+                }
+            }
         }
 
         ClobCommand::ApiKeys => {

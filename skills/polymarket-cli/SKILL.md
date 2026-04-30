@@ -34,6 +34,17 @@ Signature types: `proxy` (default — uses Polymarket's proxy wallet system), `e
 
 **V2 caveat:** L1 API keys do NOT carry over from v1. After `setup`, run `polymarket clob create-api-key` to mint fresh L2 credentials before any authenticated CLOB call.
 
+**Datacenter IP gotcha (verified 2026-04-30 on AWS / pm1)**: Polymarket's Cloudflare WAF blocks POST `/auth/*` from cloud-egress IPs (curl/Python/reqwest all return CF 403, regardless of UA). It's a JA3/IP-fingerprint block, not application-level. **Workaround**: run `polymarket clob create-api-key` once from a **residential IP** (laptop/home), then copy `~/.config/polymarket/config.json` (which now caches the L2 credentials) to the server. Trading endpoints (`POST /order`, `POST /cancel`, etc.) are NOT WAF-blocked — only `/auth/*` is. So once the API key is bootstrapped, server-side trading works fine.
+
+The CLI's `create-api-key` command (v0.3.2+) splits the create + derive calls and surfaces both errors verbosely so this case is diagnosable; older versions silently swallow the create error and report only "Could not derive api key".
+
+**Trading prerequisites (do these BEFORE first order placement)**:
+1. `polymarket setup` — wallet config
+2. `polymarket clob create-api-key` (from residential IP, see above) — L2 creds
+3. Bridge / deposit pUSD to your proxy wallet (`polymarket setup` prints the address)
+4. `polymarket approve set` — sends 8 on-chain txs (pUSD + CTF approvals for v1 + v2 exchanges). Requires MATIC for gas. **Without this, every trade reverts.**
+5. Now you can `polymarket clob create-order` etc.
+
 ## Read-only Commands (no wallet needed)
 
 ### Markets / Events / Tags / Series (Gamma API)
