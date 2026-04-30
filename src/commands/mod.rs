@@ -4,6 +4,7 @@ pub(crate) const PUSD_DECIMALS: u32 = 6;
 pub(crate) mod approve;
 pub(crate) mod bridge;
 pub(crate) mod clob;
+pub(crate) mod clob_race;
 pub(crate) mod comments;
 pub(crate) mod ctf;
 pub(crate) mod data;

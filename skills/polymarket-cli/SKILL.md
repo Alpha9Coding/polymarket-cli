@@ -144,6 +144,87 @@ Order types: `GTC` (default), `FOK`, `GTD`, `FAK`. Add `--post-only` to a limit 
 
 `--amount` for `market-order buy` is **pUSD** (not USDC). For `market-order sell` it's shares.
 
+### Race-test runner (`clob race`, v0.3.0+)
+
+Single-process, single-tokio-runtime test harness for measuring submit/cancel timing without server roundtrip blocking. All orders are pre-signed and their EIP-712 hashes (the `order_id`) computed locally BEFORE timing starts, so a `cancel` step can fire by-id even before the prior `submit`'s response has come back.
+
+```bash
+polymarket clob race \
+  --order LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE] \   # repeatable
+  --step submit:LABEL | cancel:LABEL | wait:MS \  # repeatable, ordered
+  [--repeat N] [--warmup] [--dry-run] \
+  [-o json]
+```
+
+**Order spec**: `LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE]`
+- LABEL: any string (e.g. `m1`, `t1`)
+- TOKEN: full CLOB token id (`0x…` hex or large decimal). Per-order so cross-book / multi-market scenarios work.
+- SIDE: `buy` | `sell`
+- PRICE: decimal (e.g. `0.30`)
+- SIZE: shares (e.g. `5`)
+- TYPE: `GTC` (default) | `FOK` | `GTD` | `FAK`
+
+**Step spec**: `submit:LABEL` | `cancel:LABEL` | `wait:MS`
+- submit fires `tokio::spawn(post_order)` — does NOT block; the loop moves on
+- cancel fires `tokio::spawn(cancel_order)` using the locally-computed order_id — does NOT block
+- wait blocks the step loop with `tokio::time::sleep` (precise to scheduler ~1ms)
+
+After all steps the runner joins all spawned handles and emits a single JSON record with `t0_unix_ms`, the orders block, and an `actions` array with `t_send_us` / `t_recv_us` per submit/cancel.
+
+**Polymarket matching reminder**: to match a maker `BUY YES @ p`, a taker can either be `SELL YES @ ≤p` (same token, opposite side) OR `BUY NO @ ≥(1-p)` (different token, complementary mint match). For race tests of this complementary path, m1 and t1 use **different** token ids — that's why `--order` carries the token per-line.
+
+**4 canonical scenarios**:
+
+```bash
+YES=0x...   # YES token id
+NO=0x...    # NO token id (complementary)
+
+# 1. place → 10ms → cancel — tests "can we cancel before server acks our place?"
+polymarket clob race \
+  --order m1=$YES:buy:0.30:5 \
+  --step submit:m1 --step wait:10 --step cancel:m1 \
+  -o json
+
+# 2. place maker → 10ms → place FAK taker → cancel maker
+#    tests "does FAK still match a maker the user is racing to cancel?"
+polymarket clob race \
+  --order m1=$YES:buy:0.30:5 \
+  --order t1=$NO:buy:0.70:5:FAK \
+  --step submit:m1 --step wait:10 --step submit:t1 --step cancel:m1 \
+  -o json
+
+# 3. place maker → 10ms → place GTC taker → cancel maker → 10ms → cancel GTC
+polymarket clob race \
+  --order m1=$YES:buy:0.30:5 \
+  --order t1=$NO:buy:0.70:5 \
+  --step submit:m1 --step wait:10 --step submit:t1 \
+  --step cancel:m1 --step wait:10 --step cancel:t1 \
+  -o json
+
+# 4. same as 3 but cancel GTC first, then maker
+polymarket clob race \
+  --order m1=$YES:buy:0.30:5 \
+  --order t1=$NO:buy:0.70:5 \
+  --step submit:m1 --step wait:10 --step submit:t1 \
+  --step cancel:t1 --step wait:10 --step cancel:m1 \
+  -o json
+```
+
+**Useful flags**:
+- `--dry-run` — build + sign + compute order_ids; print the plan; no server-side submit. Use to validate the spec end-to-end before live trading.
+- `--warmup` — fires a cheap `clob ok` before timing starts to warm the TCP/TLS connection pool. Recommended for any precise measurement.
+- `--repeat N` — runs the whole plan N times with fresh salts (new `order_id` per run). Outputs `{"runs": [...]}` for distribution analysis.
+
+**What's pre-computed (NOT counted in `t_send`/`t_recv`)**:
+- L1 + L2 auth (full credentials cache before t0)
+- For each `--order`: build → sign → derive `order_id` from `OrderV2.eip712_signing_hash()`
+- HTTP connection pool warmed (with `--warmup`)
+
+**What's irreducible inside `t_send`→`t_recv`**:
+- HMAC L2 signature (depends on per-request timestamp; ~100μs)
+- JSON body serialization (~10μs)
+- Network RTT (~150-300ms for taker, ~20ms for cancel per upstream measurements)
+
 ### Balances / Account
 
 ```bash

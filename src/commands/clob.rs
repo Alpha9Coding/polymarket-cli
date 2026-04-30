@@ -389,6 +389,9 @@ pub enum ClobCommand {
 
     /// Check account status (authenticated)
     AccountStatus,
+
+    /// Race-test runner: pre-sign N orders + run a submit/cancel/wait DSL with monotonic timing
+    Race(super::clob_race::RaceArgs),
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -434,7 +437,7 @@ impl From<CliInterval> for Interval {
     }
 }
 
-#[derive(Clone, Debug, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
 pub enum CliOrderType {
     #[value(name = "GTC")]
     Gtc,
@@ -472,7 +475,7 @@ impl From<CliAssetType> for AssetType {
     }
 }
 
-fn parse_token_id(s: &str) -> Result<U256> {
+pub(crate) fn parse_token_id(s: &str) -> Result<U256> {
     U256::from_str(s).map_err(|_| anyhow::anyhow!("Invalid token ID: {s}"))
 }
 
@@ -967,6 +970,10 @@ pub async fn execute(
             let client = auth::authenticated_clob_client(private_key, signature_type).await?;
             let result = client.closed_only_mode().await?;
             print_account_status(&result, output)?;
+        }
+
+        ClobCommand::Race(args) => {
+            super::clob_race::execute(args, output, private_key, signature_type).await?;
         }
     }
 

@@ -309,6 +309,25 @@ polymarket clob update-balance --asset-type collateral
 
 **Order types**: `GTC` (default), `FOK`, `GTD`, `FAK`. Add `--post-only` for limit orders.
 
+### Race-test runner (`clob race`, v0.3.0+)
+
+Single-process harness for measuring CLOB submit/cancel timing with no server-roundtrip blocking. All orders are pre-built, signed, and have their on-chain `order_id` (the EIP-712 hash) computed locally **before** the timed loop starts, so a `cancel` step can fire before the prior `submit`'s response has come back.
+
+```bash
+YES=0x...        # YES outcome's CLOB token id
+NO=0x...         # NO outcome's CLOB token id (complementary, sums to ~$1)
+
+# Place a maker, wait 10ms, cancel — without waiting for the place response.
+polymarket clob race \
+  --order m1=$YES:buy:0.30:5 \
+  --step submit:m1 --step wait:10 --step cancel:m1 \
+  --warmup -o json
+```
+
+The DSL uses repeatable `--order LABEL=TOKEN:SIDE:PRICE:SIZE[:TYPE]` and `--step submit:LABEL | cancel:LABEL | wait:MS`. Each order gets its own token (so cross-book maker/taker scenarios via Polymarket's complementary mint mechanism are first-class). Add `--dry-run` to validate the plan + sign + derive `order_id` without submitting; add `--repeat N` to run the whole plan N times for distribution stats.
+
+The output is structured JSON with `t0_unix_ms` plus per-action `t_send_us` / `t_recv_us` (monotonic from `Instant::now()`), plus the full server response per submit/cancel. See [skills/polymarket-cli/SKILL.md](skills/polymarket-cli/SKILL.md) for the four canonical race scenarios (cancel-before-place, FAK-vs-cancel, GTC-with-pre-cancel-maker, GTC-with-pre-cancel-taker).
+
 ### Rewards & API Keys (CLOB, authenticated)
 
 ```bash
