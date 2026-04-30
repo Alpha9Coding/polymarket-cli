@@ -2987,7 +2987,7 @@ dependencies = [
 
 [[package]]
 name = "polymarket-cli"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "alloy",
  "anyhow",
@@ -2995,6 +2995,7 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
+ "futures",
  "polymarket_client_sdk_v2",
  "predicates",
  "rust_decimal",

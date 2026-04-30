@@ -5,6 +5,7 @@ use alloy::primitives::U256;
 use alloy::sol;
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
+use futures::FutureExt;
 use polymarket_client_sdk_v2::types::{Address, address};
 use polymarket_client_sdk_v2::{POLYGON, contract_config};
 
@@ -150,6 +151,8 @@ async fn check(
 }
 
 async fn set(private_key: Option<&str>, output: OutputFormat) -> Result<()> {
+    use futures::stream::{FuturesUnordered, StreamExt};
+
     let provider = auth::create_provider(private_key).await?;
     let config = contract_config(POLYGON, false).context("No contract config for Polygon")?;
 
@@ -160,68 +163,118 @@ async fn set(private_key: Option<&str>, output: OutputFormat) -> Result<()> {
     let total = targets.len() * 2;
 
     if matches!(output, OutputFormat::Table) {
-        println!("Approving contracts...\n");
+        println!("Approving {total} contracts in parallel...\n");
     }
 
-    let mut results: Vec<serde_json::Value> = Vec::new();
-    let mut step = 0;
+    // Build the full task set up front. Each task = (step_label, kind, contract_name, future).
+    // alloy's default ProviderBuilder includes a NonceFiller that allocates distinct nonces
+    // atomically per request, so concurrent sends from the same EOA are safe.
+    let mut tasks: FuturesUnordered<_> = FuturesUnordered::new();
+    let mut step_idx: usize = 0;
 
     for target in &targets {
-        step += 1;
+        step_idx += 1;
         let label = format!("pUSD \u{2192} {}", target.name);
-        let tx_hash = pusd
-            .approve(target.address, U256::MAX)
-            .send()
-            .await
-            .context(format!("Failed to send pUSD approval for {}", target.name))?
-            .watch()
-            .await
-            .context(format!(
-                "Failed to confirm pUSD approval for {}",
-                target.name
-            ))?;
+        let kind = "erc20";
+        let contract_name = target.name.to_string();
+        let pusd = pusd.clone();
+        let target_addr = target.address;
+        let target_name_for_err = target.name;
+        let step = step_idx;
+        tasks.push(
+            async move {
+                let tx_hash = pusd
+                    .approve(target_addr, U256::MAX)
+                    .send()
+                    .await
+                    .context(format!(
+                        "Failed to send pUSD approval for {target_name_for_err}"
+                    ))?
+                    .watch()
+                    .await
+                    .context(format!(
+                        "Failed to confirm pUSD approval for {target_name_for_err}"
+                    ))?;
+                Ok::<_, anyhow::Error>((step, label, kind, contract_name, tx_hash))
+            }
+            .boxed(),
+        );
 
-        match output {
-            OutputFormat::Table => print_tx_result(step, total, &label, tx_hash),
-            OutputFormat::Json => results.push(serde_json::json!({
-                "step": step,
-                "type": "erc20",
-                "contract": target.name,
-                "tx_hash": format!("{tx_hash}"),
-            })),
-        }
-
-        step += 1;
+        step_idx += 1;
         let label = format!("CTF  \u{2192} {}", target.name);
-        let tx_hash = ctf
-            .setApprovalForAll(target.address, true)
-            .send()
-            .await
-            .context(format!("Failed to send CTF approval for {}", target.name))?
-            .watch()
-            .await
-            .context(format!(
-                "Failed to confirm CTF approval for {}",
-                target.name
-            ))?;
+        let kind = "erc1155";
+        let contract_name = target.name.to_string();
+        let ctf = ctf.clone();
+        let target_addr = target.address;
+        let target_name_for_err = target.name;
+        let step = step_idx;
+        tasks.push(
+            async move {
+                let tx_hash = ctf
+                    .setApprovalForAll(target_addr, true)
+                    .send()
+                    .await
+                    .context(format!(
+                        "Failed to send CTF approval for {target_name_for_err}"
+                    ))?
+                    .watch()
+                    .await
+                    .context(format!(
+                        "Failed to confirm CTF approval for {target_name_for_err}"
+                    ))?;
+                Ok::<_, anyhow::Error>((step, label, kind, contract_name, tx_hash))
+            }
+            .boxed(),
+        );
+    }
 
-        match output {
-            OutputFormat::Table => print_tx_result(step, total, &label, tx_hash),
-            OutputFormat::Json => results.push(serde_json::json!({
-                "step": step,
-                "type": "erc1155",
-                "contract": target.name,
-                "tx_hash": format!("{tx_hash}"),
-            })),
+    let mut completed = 0usize;
+    let mut json_results: Vec<serde_json::Value> = Vec::with_capacity(total);
+    let mut first_error: Option<anyhow::Error> = None;
+
+    while let Some(res) = tasks.next().await {
+        match res {
+            Ok((step, label, kind, contract_name, tx_hash)) => {
+                completed += 1;
+                match output {
+                    OutputFormat::Table => {
+                        // Step number reflects the original launch order, not completion order;
+                        // the suffix after `total` tells the user how many of N have landed.
+                        print_tx_result(step, total, &label, tx_hash);
+                    }
+                    OutputFormat::Json => {
+                        json_results.push(serde_json::json!({
+                            "step": step,
+                            "type": kind,
+                            "contract": contract_name,
+                            "tx_hash": format!("{tx_hash}"),
+                        }));
+                    }
+                }
+            }
+            Err(e) => {
+                if matches!(output, OutputFormat::Table) {
+                    eprintln!("[error] {e:#}");
+                }
+                if first_error.is_none() {
+                    first_error = Some(e);
+                }
+            }
         }
+    }
+
+    if let Some(err) = first_error {
+        return Err(err);
     }
 
     match output {
         OutputFormat::Table => {
-            println!("\nAll contracts approved. You're ready to trade.");
+            println!("\nAll {completed} approval transactions confirmed. You're ready to trade.");
         }
         OutputFormat::Json => {
-            println!("{}", serde_json::to_string_pretty(&results)?);
+            // Render in original launch order so output is deterministic across runs.
+            json_results.sort_by_key(|v| v.get("step").and_then(|s| s.as_u64()).unwrap_or(0));
+            println!("{}", serde_json::to_string_pretty(&json_results)?);
         }
     }
 

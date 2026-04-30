@@ -1,6 +1,6 @@
 {
   "name": "polymarket-cli",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Claude Code skill for the polymarket CLI (Polymarket V2 / pUSD). Teaches the agent how to drive the binary — browse markets, query CLOB v2 prices/books, place orders, manage positions, run CTF split/merge/redeem.",
   "homepage": "https://github.com/Alpha9Coding/polymarket-cli",
   "author": {
