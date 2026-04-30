@@ -35,6 +35,30 @@ brew install polymarket
 curl -sSL https://raw.githubusercontent.com/Alpha9Coding/polymarket-cli/main/install.sh | sh
 ```
 
+## Claude Code skill (for AI agents)
+
+This repo ships a [Claude Code](https://claude.com/claude-code) skill that teaches Claude how to drive the `polymarket` CLI — when to use which subcommand, how to pipe JSON output, the v2-specific gotchas (pUSD, API key re-derivation, etc.). After installing the skill, ask Claude things like *"check my Polymarket positions"*, *"show the order book for the Bitcoin $100K market"*, or *"split $10 pUSD into YES/NO tokens for condition 0x…"* and the skill will fire automatically.
+
+Two install methods — both pull the skill files from this repo, so updates land via `git pull`:
+
+**1. As a Claude Code plugin** (single command, auto-discoverable)
+
+```bash
+# Inside Claude Code
+/plugin add github:Alpha9Coding/polymarket-cli
+```
+
+**2. Manual symlink** (always works)
+
+```bash
+git clone https://github.com/Alpha9Coding/polymarket-cli   # if you don't already have it
+ln -s "$(pwd)/polymarket-cli/skills/polymarket-cli" ~/.claude/skills/polymarket-cli
+```
+
+After install, restart Claude Code (or type `/help` to verify the skill is listed). The `polymarket` binary itself must already be installed via one of the methods above — the skill teaches the agent to use the CLI, it doesn't bundle the CLI.
+
+The skill source is at [skills/polymarket-cli/SKILL.md](skills/polymarket-cli/SKILL.md). Plugin metadata lives at [.claude-plugin/plugin.json](.claude-plugin/plugin.json).
+
 ## Quick Start
 
 ```bash

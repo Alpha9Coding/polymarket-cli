@@ -19,3 +19,4 @@ rs-clob-client/
 .env
 
 CLAUDE.md
+.claude/
