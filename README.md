@@ -520,6 +520,16 @@ src/
   output/        -- Table and JSON rendering per command group
 ```
 
+## Contributing
+
+After cloning, enable the in-repo pre-commit hook so local commits run the same gate as CI (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`):
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook only fires when staged changes touch `*.rs` or `Cargo.{toml,lock}`, and you can bypass it with `git commit --no-verify` for WIP commits on a feature branch.
+
 ## License
 
 MIT
