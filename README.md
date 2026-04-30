@@ -2,29 +2,37 @@
 
 Rust CLI for Polymarket. Browse markets, place orders, manage positions, and interact with onchain contracts — from a terminal or as a JSON API for scripts and agents.
 
+> **Fork notice:** This is a fork of [Polymarket/polymarket-cli](https://github.com/Polymarket/polymarket-cli) updated to use the Polymarket V2 CLOB SDK ([`polymarket_client_sdk_v2`](https://github.com/Polymarket/rs-clob-client-v2)). Polymarket V2 went live on 2026-04-28; v1 SDKs no longer work against production. See [docs.polymarket.com/v2-migration](https://docs.polymarket.com/v2-migration) for context.
+
 > **Warning:** This is early, experimental software. Use at your own risk and do not use with large amounts of funds. APIs, commands, and behavior may change without notice. Always verify transactions before confirming.
 
 ## Install
 
-### Homebrew (macOS / Linux)
+### Build from source (recommended)
 
 ```bash
-brew tap Polymarket/polymarket-cli https://github.com/Polymarket/polymarket-cli
+git clone https://github.com/Alpha9Coding/polymarket-cli
+cd polymarket-cli
+cargo install --path .
+```
+
+This installs the `polymarket` binary to `~/.cargo/bin/`. Make sure that directory is on your `PATH`.
+
+### Homebrew (macOS / Linux)
+
+> Available after this fork cuts a release.
+
+```bash
+brew tap Alpha9Coding/polymarket-cli https://github.com/Alpha9Coding/polymarket-cli
 brew install polymarket
 ```
 
 ### Shell script
 
-```bash
-curl -sSL https://raw.githubusercontent.com/Polymarket/polymarket-cli/main/install.sh | sh
-```
-
-### Build from source
+> Available after this fork cuts a release.
 
 ```bash
-git clone https://github.com/Polymarket/polymarket-cli
-cd polymarket-cli
-cargo install --path .
+curl -sSL https://raw.githubusercontent.com/Alpha9Coding/polymarket-cli/main/install.sh | sh
 ```
 
 ## Quick Start
@@ -332,7 +340,7 @@ polymarket data builder-volume --period month
 
 ### Contract Approvals
 
-Before trading, Polymarket contracts need ERC-20 (USDC) and ERC-1155 (CTF token) approvals.
+Before trading, Polymarket V2 contracts need ERC-20 (pUSD) and ERC-1155 (CTF token) approvals.
 
 ```bash
 # Check current approvals (read-only)
@@ -348,10 +356,10 @@ polymarket approve set
 Split, merge, and redeem conditional tokens directly on-chain.
 
 ```bash
-# Split $10 USDC into YES/NO tokens
+# Split $10 pUSD into YES/NO tokens
 polymarket ctf split --condition 0xCONDITION... --amount 10
 
-# Merge tokens back to USDC
+# Merge tokens back to pUSD
 polymarket ctf merge --condition 0xCONDITION... --amount 10
 
 # Redeem winning tokens after resolution
@@ -366,7 +374,7 @@ polymarket ctf collection-id --condition 0xCONDITION... --index-set 1
 polymarket ctf position-id --collection 0xCOLLECTION...
 ```
 
-`--amount` is in USDC (e.g., `10` = $10). The `--partition` flag defaults to binary (`1,2`). On-chain operations require MATIC for gas on Polygon.
+`--amount` is in pUSD (e.g., `10` = $10). The `--partition` flag defaults to binary (`1,2`). On-chain operations require MATIC for gas on Polygon.
 
 ### Bridge
 
