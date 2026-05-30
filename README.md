@@ -122,6 +122,22 @@ The config file (`~/.config/polymarket/config.json`):
 
 Override per-command with `--signature-type eoa` or via `POLYMARKET_SIGNATURE_TYPE`.
 
+### Gnosis Safe funder (`--funder`)
+
+A CLOB order has a `maker` (where the funds/positions live) and a `signer` (the EOA that signs). When your funds sit in a **Gnosis Safe** and the configured private key is only an owner/signer, pass the Safe address as the funder so it becomes the order `maker`:
+
+```bash
+polymarket --funder 0xSAFE_ADDRESS clob create-order --token <id> --side sell --price 0.40 --size 5
+polymarket --funder 0xSAFE_ADDRESS clob orders
+polymarket --funder 0xSAFE_ADDRESS clob cancel <order-id>
+```
+
+- Resolution order: `--funder` flag > `POLYMARKET_FUNDER` env > config-file `funder` field.
+- Setting a funder **implies `--signature-type gnosis-safe`** unless you pass a signature type explicitly (`eoa` + funder is rejected).
+- This is required for Safes that were created independently (not derived from your EOA), since the CLI can't compute the address — you supply it.
+- Dry-run check (no order placed): `polymarket --funder 0xSAFE clob race --order m=<tok>:sell:0.4:5 --step submit:m --dry-run -o json` → the order's `maker` equals the Safe.
+- For Safe holdings, prefer `polymarket data positions 0xSAFE` over `clob balance --funder` (the balance endpoint can't target a non-derived Safe).
+
 ### What Needs a Wallet
 
 Most commands work without a wallet — browsing markets, viewing order books, checking prices. You only need a wallet for:

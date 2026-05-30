@@ -18,7 +18,7 @@ use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use alloy::dyn_abi::Eip712Domain;
-use alloy::primitives::U256 as AlloyU256;
+use alloy::primitives::{Address as AlloyAddress, U256 as AlloyU256};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol_types::SolStruct as _;
 use anyhow::{Context, Result, anyhow, bail};
@@ -26,7 +26,6 @@ use clap::Args;
 use polymarket_client_sdk_v2::auth::Normal;
 use polymarket_client_sdk_v2::auth::Signer as _;
 use polymarket_client_sdk_v2::auth::state::Authenticated;
-use polymarket_client_sdk_v2::clob::types::SignatureType;
 use polymarket_client_sdk_v2::clob::types::response::{CancelOrdersResponse, PostOrderResponse};
 use polymarket_client_sdk_v2::clob::types::{OrderPayload, OrderType, Side, SignedOrder};
 use polymarket_client_sdk_v2::{POLYGON, clob, contract_config};
@@ -212,6 +211,7 @@ pub async fn execute(
     output: &OutputFormat,
     private_key: Option<&str>,
     signature_type: Option<&str>,
+    funder: Option<&str>,
 ) -> Result<()> {
     if args.orders.is_empty() {
         bail!("at least one --order is required");
@@ -278,8 +278,11 @@ pub async fn execute(
 
     let mut bundles: HashMap<String, SignerBundle> = HashMap::new();
     if multi_signer_mode {
+        // The global --funder applies to every signer that doesn't carry its own.
+        // Per-signer funders are not yet expressible in the --signer spec; racing two
+        // DISTINCT Safes is out of scope (the common case is one maker Safe).
         for spec in &args.signers {
-            let bundle = build_bundle(&spec.private_key, spec.signature_type.as_deref())
+            let bundle = build_bundle(&spec.private_key, spec.signature_type.as_deref(), funder)
                 .await
                 .with_context(|| format!("authenticate signer `{}` failed", spec.label))?;
             bundles.insert(spec.label.clone(), bundle);
@@ -288,7 +291,7 @@ pub async fn execute(
         // Backward-compat: single default signer from --private-key flag or config.
         let (key, _) = crate::config::resolve_key(private_key)?;
         let key = key.ok_or_else(|| anyhow!("{}", crate::config::NO_WALLET_MSG))?;
-        let bundle = build_bundle(&key, signature_type)
+        let bundle = build_bundle(&key, signature_type, funder)
             .await
             .context("authenticate default signer failed")?;
         bundles.insert(DEFAULT_SIGNER_LABEL.to_string(), bundle);
@@ -326,27 +329,27 @@ pub async fn execute(
 /// Authenticate one private key end-to-end and return the bundle. Mirrors
 /// `auth::authenticate_with_signer` but exposes the concrete signer so we
 /// can still `.sign()` orders later.
-async fn build_bundle(private_key: &str, sig_type_flag: Option<&str>) -> Result<SignerBundle> {
+async fn build_bundle(
+    private_key: &str,
+    sig_type_flag: Option<&str>,
+    funder_flag: Option<&str>,
+) -> Result<SignerBundle> {
     let signer = PrivateKeySigner::from_str(private_key)
         .context("Invalid private key")?
         .with_chain_id(Some(POLYGON));
-    let resolved_sig_type = crate::config::resolve_signature_type(sig_type_flag)?;
-    let sig_type = parse_signature_type(&resolved_sig_type);
-    let client = auth::unauthenticated_clob_client()?
+    let funder = auth::resolve_funder_address(funder_flag)?;
+    let sig_type = auth::effective_signature_type(sig_type_flag, funder.is_some())?;
+    let mut builder = auth::unauthenticated_clob_client()?
         .authentication_builder(&signer)
-        .signature_type(sig_type)
+        .signature_type(sig_type);
+    if let Some(addr) = funder {
+        builder = builder.funder(addr);
+    }
+    let client = builder
         .authenticate()
         .await
         .context("Failed to authenticate with Polymarket CLOB")?;
     Ok(SignerBundle { signer, client })
-}
-
-fn parse_signature_type(s: &str) -> SignatureType {
-    match s {
-        "proxy" => SignatureType::Proxy,
-        "gnosis-safe" => SignatureType::GnosisSafe,
-        _ => SignatureType::Eoa,
-    }
 }
 
 async fn run_one(
@@ -408,7 +411,11 @@ async fn run_one(
                 "size": spec.size,
                 "order_type": format!("{:?}", spec.order_type),
                 "signer": signer_label,
-                "maker": format!("{}", bundle.signer.address()),
+                // The real EIP-712 maker from the signed payload — equals the funder Safe
+                // when --funder is set, else the signer EOA. (Previously hardcoded to the
+                // signer, which mis-reported gnosis-safe/funder orders.)
+                "signer_address": format!("{}", bundle.signer.address()),
+                "maker": format!("{}", signed_order_maker(&signed)),
             }),
         );
         order_id_by_label.insert(spec.label.clone(), order_id);
@@ -569,6 +576,16 @@ fn step_summary(s: &StepSpec) -> Value {
         StepSpec::Submit(l) => json!({"kind": "submit", "label": l}),
         StepSpec::Cancel(l) => json!({"kind": "cancel", "label": l}),
         StepSpec::Wait(ms) => json!({"kind": "wait", "duration_ms": ms}),
+    }
+}
+
+/// The actual `maker` field baked into the signed EIP-712 order. Equals the
+/// funder Safe when `--funder` was set, otherwise the signer EOA.
+fn signed_order_maker(signed: &SignedOrder) -> AlloyAddress {
+    match &signed.payload {
+        OrderPayload::V2(p) => p.order.maker,
+        OrderPayload::V1(p) => p.order.maker,
+        _ => AlloyAddress::ZERO,
     }
 }
 

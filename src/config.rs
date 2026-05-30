@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 const ENV_VAR: &str = "POLYMARKET_PRIVATE_KEY";
 const SIG_TYPE_ENV_VAR: &str = "POLYMARKET_SIGNATURE_TYPE";
+const FUNDER_ENV_VAR: &str = "POLYMARKET_FUNDER";
 pub(crate) const DEFAULT_SIGNATURE_TYPE: &str = "proxy";
 
 pub(crate) const NO_WALLET_MSG: &str =
@@ -17,6 +18,11 @@ pub(crate) struct Config {
     pub chain_id: u64,
     #[serde(default = "default_signature_type")]
     pub signature_type: String,
+    /// Optional override for the order `maker` address (a Gnosis Safe that holds the
+    /// funds/positions while the configured private key is just an owner/signer).
+    /// Usually supplied via `--funder` / `POLYMARKET_FUNDER` instead of the config file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub funder: Option<String>,
 }
 
 fn default_signature_type() -> String {
@@ -94,6 +100,35 @@ pub fn resolve_signature_type(cli_flag: Option<&str>) -> Result<String> {
     Ok(DEFAULT_SIGNATURE_TYPE.to_string())
 }
 
+/// Whether the user EXPLICITLY chose a signature type (via flag or env var).
+/// The config-file value is the always-present default and is NOT treated as
+/// explicit — this lets `--funder` auto-promote to gnosis-safe even when a
+/// wallet config carries the default "proxy" signature type.
+pub fn signature_type_explicitly_set(cli_flag: Option<&str>) -> bool {
+    if cli_flag.is_some() {
+        return true;
+    }
+    std::env::var(SIG_TYPE_ENV_VAR).is_ok_and(|st| !st.is_empty())
+}
+
+/// Resolve the optional funder (order `maker`) address string.
+/// Priority: CLI flag > env var > config file. Returns `Ok(None)` when unset.
+pub fn resolve_funder(cli_flag: Option<&str>) -> Result<Option<String>> {
+    if let Some(f) = cli_flag {
+        let f = f.trim();
+        return Ok((!f.is_empty()).then(|| f.to_string()));
+    }
+    if let Ok(f) = std::env::var(FUNDER_ENV_VAR)
+        && !f.is_empty()
+    {
+        return Ok(Some(f));
+    }
+    if let Some(config) = load_config()? {
+        return Ok(config.funder);
+    }
+    Ok(None)
+}
+
 pub fn save_wallet(key: &str, chain_id: u64, signature_type: &str) -> Result<()> {
     let dir = config_dir()?;
     fs::create_dir_all(&dir).context("Failed to create config directory")?;
@@ -104,10 +139,14 @@ pub fn save_wallet(key: &str, chain_id: u64, signature_type: &str) -> Result<()>
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
     }
 
+    // Preserve a manually-configured funder across wallet re-import/reconfigure.
+    let existing_funder = load_config().ok().flatten().and_then(|c| c.funder);
+
     let config = Config {
         private_key: key.to_string(),
         chain_id,
         signature_type: signature_type.to_string(),
+        funder: existing_funder,
     };
     let json = serde_json::to_string_pretty(&config)?;
     let path = config_path()?;
@@ -221,5 +260,44 @@ mod tests {
         unsafe { unset(SIG_TYPE_ENV_VAR) };
         let result = resolve_signature_type(None).unwrap();
         assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn resolve_funder_flag_overrides_env() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        unsafe { set(FUNDER_ENV_VAR, "0xenvfunder") };
+        let f = resolve_funder(Some("0xflagfunder")).unwrap();
+        assert_eq!(f.as_deref(), Some("0xflagfunder"));
+        unsafe { unset(FUNDER_ENV_VAR) };
+    }
+
+    #[test]
+    fn resolve_funder_reads_env_when_no_flag() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        unsafe { set(FUNDER_ENV_VAR, "0xF6F687D9c728a4fc5590D71e2e53b9D418E20E74") };
+        let f = resolve_funder(None).unwrap();
+        assert_eq!(
+            f.as_deref(),
+            Some("0xF6F687D9c728a4fc5590D71e2e53b9D418E20E74")
+        );
+        unsafe { unset(FUNDER_ENV_VAR) };
+    }
+
+    #[test]
+    fn resolve_funder_empty_flag_is_none() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        unsafe { unset(FUNDER_ENV_VAR) };
+        assert!(resolve_funder(Some("   ")).unwrap().is_none());
+    }
+
+    #[test]
+    fn sig_type_explicit_only_for_flag_or_env() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        unsafe { unset(SIG_TYPE_ENV_VAR) };
+        assert!(signature_type_explicitly_set(Some("eoa")));
+        assert!(!signature_type_explicitly_set(None));
+        unsafe { set(SIG_TYPE_ENV_VAR, "eoa") };
+        assert!(signature_type_explicitly_set(None));
+        unsafe { unset(SIG_TYPE_ENV_VAR) };
     }
 }

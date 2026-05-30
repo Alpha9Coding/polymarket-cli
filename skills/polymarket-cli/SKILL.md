@@ -32,6 +32,26 @@ polymarket wallet show            # print address + config path
 
 Signature types: `proxy` (default — uses Polymarket's proxy wallet system), `eoa` (sign directly with EOA), `gnosis-safe`. Override per-command with `--signature-type eoa` or env var `POLYMARKET_SIGNATURE_TYPE`.
 
+### Gnosis Safe / `--funder` (v0.6.0+)
+
+A Polymarket CLOB order has two address fields: **`maker`** (where the funds/positions live) and **`signer`** (the EOA that signs the EIP-712 order). For an ordinary wallet they're equal. For a **Gnosis Safe** that holds the funds while an EOA is just an owner, they differ — and if the Safe was created independently (NOT derived from the EOA via Polymarket's proxy factory), the CLI can't compute the Safe address, so you must pass it explicitly:
+
+```bash
+# global flag (works on every authenticated clob subcommand) — value > POLYMARKET_FUNDER env > config "funder" field
+polymarket --funder 0xSAFE_ADDR clob create-order --token <id> --side sell --price 0.40 --size 5
+polymarket --funder 0xSAFE_ADDR clob orders
+polymarket --funder 0xSAFE_ADDR clob cancel <order-id>
+POLYMARKET_FUNDER=0xSAFE_ADDR polymarket clob create-order ...
+```
+
+Semantics:
+- `maker` = the funder Safe; `signer` = the configured private key's EOA. The Safe must list that EOA as an owner (the server validates the signature against the Safe's owners).
+- `--funder` **auto-promotes the signature type to `gnosis-safe`** unless you explicitly pass `--signature-type` (or set `POLYMARKET_SIGNATURE_TYPE`). `--funder` + `--signature-type eoa` is rejected with a clear error.
+- Validation is pre-network: a malformed or zero funder address fails fast.
+- Verify resolution without trading: `clob race --dry-run --funder 0xSAFE ...` → each order's `maker` in the JSON output equals the Safe (and `signer_address` shows the EOA).
+
+**Balance caveat**: `clob balance --asset-type conditional --funder 0xSAFE` is unreliable for an independently-created Safe — the balance endpoint only sends the signature type, and the server derives the address from the signer EOA, which won't match a non-derived Safe. For ground-truth Safe holdings use **`polymarket data positions 0xSAFE`** instead.
+
 **V2 caveat:** L1 API keys do NOT carry over from v1. After `setup`, run `polymarket clob create-api-key` to mint fresh L2 credentials before any authenticated CLOB call.
 
 **Datacenter IP gotcha (verified 2026-04-30 on AWS / pm1)**: Polymarket's Cloudflare WAF blocks POST `/auth/*` from cloud-egress IPs (curl/Python/reqwest all return CF 403, regardless of UA). It's a JA3/IP-fingerprint block, not application-level. **Workaround**: run `polymarket clob create-api-key` once from a **residential IP** (laptop/home), then copy `~/.config/polymarket/config.json` (which now caches the L2 credentials) to the server. Trading endpoints (`POST /order`, `POST /cancel`, etc.) are NOT WAF-blocked — only `/auth/*` is. So once the API key is bootstrapped, server-side trading works fine.

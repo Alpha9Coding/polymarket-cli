@@ -26,6 +26,12 @@ pub(crate) struct Cli {
     /// Signature type: eoa, proxy, or gnosis-safe
     #[arg(long, global = true)]
     signature_type: Option<String>,
+
+    /// Funder address: the order `maker` (a Gnosis Safe holding the funds/positions)
+    /// while the private key is just an owner/signer. Implies gnosis-safe signature type
+    /// unless --signature-type is given. Overrides POLYMARKET_FUNDER and config.
+    #[arg(long, global = true)]
+    funder: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -105,6 +111,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
                 cli.output,
                 cli.private_key.as_deref(),
                 cli.signature_type.as_deref(),
+                cli.funder.as_deref(),
             )
             .await
         }
